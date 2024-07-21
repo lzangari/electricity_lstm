@@ -44,23 +44,23 @@ def adjust_axes(ax):
     # Hide the top and right spines
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    
+
     # Move bottom spine to zero
     ax.spines['bottom'].set_position('zero')
     ax.spines['bottom'].set_color('#D0D3D6')
-    
+
     # Move left spine to zero
     ax.spines['left'].set_position('zero')
     ax.spines['left'].set_color('#D0D3D6')
-    
+
     # Add arrows
     ax.plot(1, 0, ">k", transform=ax.get_yaxis_transform(), clip_on=False, color='#D0D3D6', markersize=10 )
     ax.plot(0, 1, "^k", transform=ax.get_xaxis_transform(), clip_on=False, color='#D0D3D6', markersize=10 )
-    
+
     # Make the axis thicker
     ax.spines['left'].set_linewidth(3)
     ax.spines['bottom'].set_linewidth(3)
-    
+
     # Limit view
     ax.set_xlim(-5, 5)
     ax.set_ylim(-1.2, 1.2)
