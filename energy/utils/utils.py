@@ -7,6 +7,8 @@ def convert_to_float(data):
     Returns:
         float: The float value of the string, or None if it can't be converted.
     """
+    if data.isinstance(float):
+        return data
     try:
         return float(data.replace(".", "").replace(",", "."))
 
