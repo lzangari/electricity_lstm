@@ -1,5 +1,3 @@
-
-
 def convert_to_float(data):
     """Converts a string to a float, replacing commas with dots.
 
@@ -10,7 +8,10 @@ def convert_to_float(data):
         float: The float value of the string, or None if it can't be converted.
     """
     try:
-        return float(data.replace('.', '').replace(',', '.'))
+        return float(data.replace(".", "").replace(",", "."))
 
-    except ValueError:
-        return None
+    except Exception as e:
+        if data == "-":
+            return None
+        else:
+            print(f"Error converting {data} to float: {e}")
