@@ -39,3 +39,24 @@ def encode_feature(data, column_name: str, max_value: int):
     data[column_name + "_sin"] = np.sin(2 * np.pi * data[column_name] / max_value)
     data[column_name + "_cos"] = np.cos(2 * np.pi * data[column_name] / max_value)
     return data
+
+
+def create_sequences(data, seq_length, pred_length, output_size):
+    """Create sequences of input and output data for training the LSTM model.
+
+    Args:
+        data (array): The input data to be sequenced.
+        seq_length (int): The length of the input sequences.
+        pred_length (int): The length of the output sequences.
+        output_size (int): The number of output features.
+
+    Returns:
+        _tuple_: A tuple of input and output sequences.
+    """
+    X, y = [], []
+    for i in range(len(data) - seq_length - pred_length + 1):
+        # x is input sequence with the length of seq_length
+        X.append(data[i : (i + seq_length)])
+        # y is the output sequence with the length of pred_length
+        y.append(data[(i + seq_length) : (i + seq_length + pred_length), :output_size])
+    return np.array(X), np.array(y)
