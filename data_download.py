@@ -46,7 +46,7 @@ additional_data = {
     "format": "CSV",
     "region": "DE",
     "type": "discrete",
-    "language": "en",
+    "language": "de",
     "timestamp_from": 1420066800000,
     "timestamp_to": 1719784799999,
 }
