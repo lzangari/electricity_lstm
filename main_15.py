@@ -3,15 +3,23 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 from energy.utils import utils
+from energy.modelling import optimization, model_creation
 
 TF_ENABLE_ONEDNN_OPTS = 0
 
-DATA_NAME = "quarterhour"
+DATA_NAME = "hour"  # quarterhour
 MODEL_NAME = "lstm_naive"  # lstm_naive, lstm_stacked, lstm_seq2seq
-OPTIMIZE_LENGTH_SEQUENCE = False
+OPTIMIZE_LENGTH_SEQUENCE = True
+if OPTIMIZE_LENGTH_SEQUENCE:
+    selected_seq_lengths = [24, 24 * 2, 24 * 7]  # 1 day, 2 days, 1 week
 
-SEQ_LENGTH = 24 * 4  # 24 hours of 15-minute intervals
-PRED_LENGTH = 24 * 4  # Predict one day ahead
+SEQ_LENGTH = 24 * 1  # 24 hours of one hour intervals
+PRED_LENGTH = 24 * 1  # Predict one day ahead
+
+if MODEL_NAME == "lstm_naive":
+    built_model = model_creation.build_naive_lstm_model
+elif MODEL_NAME == "lstm_stacked":
+    built_model = model_creation.build_stacked_lstm_model
 
 ################################################################################
 ###################################Import Data##################################
@@ -246,3 +254,20 @@ X_test, y_test = utils.create_sequences(
 )
 
 print("X_train shape: ", X_train.shape)
+
+if OPTIMIZE_LENGTH_SEQUENCE:
+    best_sequence_length, losses, calculated_seq_lengths = (
+        optimization.optimize_seq_length(
+            data=scaled_train_data,
+            seq_lengths=selected_seq_lengths,
+            pred_length=PRED_LENGTH,
+            output_size=output_size,
+            built_model=built_model,
+            path="model_info",
+            epochs=50,
+            batch_size=64,
+            num_folds=3,
+            verbose=2,
+            name="NAIVE_hour",
+        )
+    )
