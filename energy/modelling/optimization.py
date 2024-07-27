@@ -15,11 +15,12 @@ def optimize_seq_length(
     output_size,
     built_model,
     path,
+    model_type,
     epochs=10,
     batch_size=32,
     num_folds=3,
     verbose=2,
-    name="NAIVE_quarterhour",
+    name=None,
 ):
     """Optimize the sequence length for the LSTM model using KFold cross-validation.
 
@@ -34,7 +35,7 @@ def optimize_seq_length(
         batch_size (int, optional): Batch size for training the model. Defaults to 32.
         num_folds (int, optional): Number of folds for cross-validation. Defaults to 3.
         verbose (int, optional): Verbosity mode. Defaults to 2.
-        name (str, optional): The name of the file to save the best sequence length. Defaults to "NAIVE_quarterhour".
+        name (str, optional): The name of the file to save the best sequence length.
 
     Returns:
         int: The best sequence length.
@@ -67,7 +68,10 @@ def optimize_seq_length(
 
             # Build the model and train it on the training data
             model = built_model(
-                (X_train.shape[1], X_train.shape[2]), pred_length * output_size
+                model_type=model_type,
+                input_shape=(X_train.shape[1], X_train.shape[2]),
+                output_size=output_size,
+                pred_length=pred_length,
             )
             # fit the model
             _ = model.fit(
@@ -113,5 +117,9 @@ def optimize_seq_length(
 
     with open(f"{path}/{name}_best_sequence_length.json", "w") as f:
         json.dump({"best_seq_length": best_seq_length, "loss": best_loss}, f)
+
+    # save the losses and calculated sequence lengths
+    with open(f"{path}/{name}_losses.json", "w") as f:
+        json.dump({"losses": losses, "seq_lengths": calculated_seq_lengths}, f)
 
     return best_seq_length, losses, calculated_seq_lengths
