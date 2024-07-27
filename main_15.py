@@ -1,20 +1,28 @@
 import os
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
 from energy.utils import utils
 
 TF_ENABLE_ONEDNN_OPTS = 0
 
-data_name = "201501010000_202407010000_15_min"
+DATA_NAME = "quarterhour"
+MODEL_NAME = "lstm_naive"  # lstm_naive, lstm_stacked, lstm_seq2seq
+OPTIMIZE_LENGTH_SEQUENCE = False
+
+SEQ_LENGTH = 24 * 4  # 24 hours of 15-minute intervals
+PRED_LENGTH = 24 * 4  # Predict one day ahead
 
 ################################################################################
 ###################################Import Data##################################
 ################################################################################
 
 # Load the uploaded data files
-production_df = pd.read_csv(rf"data/realised_creation_{data_name}.csv", delimiter=";")
+production_df = pd.read_csv(
+    rf"electricity_data/creation_realized_{DATA_NAME}.csv", delimiter=";"
+)
 consumption_df = pd.read_csv(
-    rf"data/realised_consumption_{data_name}.csv", delimiter=";"
+    rf"electricity_data/consumption_realized_{DATA_NAME}.csv", delimiter=";"
 )
 
 # Check the first few rows of the dataframes of production and consumption
@@ -162,4 +170,79 @@ if not os.path.exists("data/transformed"):
     print("Directory 'transformed' created")
 
 # save the data to the transformed folder
-data.to_csv(rf"data/transformed/transformed_{data_name}.csv", index=False)
+data.to_csv(rf"data/transformed/transformed_{DATA_NAME}.csv", index=False)
+
+
+################################################################################
+##############################FEATURE SELECTION#################################
+################################################################################
+# Select relevant features for training
+features = [
+    "biomass_mwh",
+    "hydropower_mwh",
+    "wind_offshore_mwh",
+    "wind_onshore_mwh",
+    "solar_mwh",
+    "other_renewables_mwh",
+    "nuclear_mwh",
+    "lignite_mwh",
+    "hard_coal_mwh",
+    "natural_gas_mwh",
+    "pumped_storage_mwh",
+    "other_conventional_mwh",
+    "hour_sin",
+    "hour_cos",
+    "minute_sin",
+    "minute_cos",
+    "day_of_week_sin",
+    "day_of_week_cos",
+    "day_of_year_sin",
+    "day_of_year_cos",
+    "week_of_year_sin",
+    "week_of_year_cos",
+]
+
+# Output features
+output_features = ["total_production_mwh", "total_load_mwh"]
+output_size = len(output_features)
+
+# Combine into a complete list for dataframe alignment
+all_columns = output_features + features
+
+# describe the data with the selected features
+print(f"Data description with selected features: {data[all_columns].describe()}")
+
+# check the type of the features
+print(f"Data types of the selected features: {data[all_columns].dtypes}")
+
+
+##################################Data Preparation################################
+# Split the data into train, validation, and test sets
+train_data = data[data["start_time"] < "2022-01-01"]  # '2022-01-01'
+validation_data = data[
+    (data["start_time"] >= "2022-01-01") & (data["start_time"] < "2023-01-01")
+]
+test_data = data[data["start_time"] >= "2023-01-01"]
+
+
+#################################Data Transformation###############################
+# Scale the data
+scaler = MinMaxScaler()
+# fit the scaler on the training data
+scaled_train_data = scaler.fit_transform(train_data[features])
+# transform the validation and test data
+scaled_validation_data = scaler.transform(validation_data[features])
+scaled_test_data = scaler.transform(test_data[features])
+
+###################################Data Sequencing#################################
+X_train, y_train = utils.create_sequences(
+    scaled_train_data, SEQ_LENGTH, PRED_LENGTH, output_size
+)
+X_val, y_val = utils.create_sequences(
+    scaled_validation_data, SEQ_LENGTH, PRED_LENGTH, output_size
+)
+X_test, y_test = utils.create_sequences(
+    scaled_test_data, SEQ_LENGTH, PRED_LENGTH, output_size
+)
+
+print("X_train shape: ", X_train.shape)
