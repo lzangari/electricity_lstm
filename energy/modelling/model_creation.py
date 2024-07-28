@@ -1,11 +1,21 @@
-# build the naive LSTM model
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
+from tensorflow.keras.layers import (
+    LSTM,
+    Dense,
+    Dropout,
+    Input,
+    RepeatVector,
+    TimeDistributed,
+    AdditiveAttention,
+)
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.models import Model
+from keras.layers import concatenate
 
 
+# disable_eager_execution()
 # LSTM-based model
 def build_lstm_based_model(
     model_type,
@@ -73,4 +83,98 @@ def build_lstm_based_model_with_hp(
     return model
 
 
-# # Seq2Seq LSTM model
+# Seq2Seq LSTM model
+def build_seq2seq_lstm_model(
+    input_shape,
+    output_size,
+    pred_length,
+    units=50,
+    dropout=0.2,
+    learning_rate=0.005,
+    regularization=True,
+):
+    # Encoder
+    encoder_inputs = Input(shape=input_shape)
+    # LSTM layer with return_state=True to get the hidden and cell states
+    encoder_lstm, state_h, state_c = LSTM(
+        units, return_state=True, return_sequences=True
+    )(encoder_inputs)
+    if regularization:
+        # leaky relu activation function
+        encoder_lstm = LeakyReLU(negative_slope=0.1)(encoder_lstm)
+        # dropout layer
+        encoder_lstm = Dropout(dropout)(encoder_lstm)
+    # repeat the hidden state of the encoder LSTM for pred_length times to be used as input to the decoder
+    decoder_input = RepeatVector(pred_length)(state_h)
+    # LSTM layer with return_sequences=True to get the output at each time step
+    decoder_lstm = LSTM(units, return_sequences=True, return_state=False)(
+        decoder_input, initial_state=[state_h, state_c]
+    )
+    if regularization:
+        # leaky relu
+        decoder_lstm = LeakyReLU(negative_slope=0.1)(decoder_lstm)
+        # dropout
+        decoder_lstm = Dropout(dropout)(decoder_lstm)
+    # create a context vector using the attention mechanism for capturing the relevant information from the encoder output at each time step
+    context_vector = AdditiveAttention()([decoder_lstm, encoder_lstm])
+    # concatenate the context vector with the decoder output for each time step
+    decoder_combined_context = concatenate([context_vector, decoder_lstm])
+    # time distributed dense layer to get the output at each time step
+    out = TimeDistributed(Dense(output_size))(decoder_combined_context)
+    # define the model with encoder input and decoder output
+    model = Model(inputs=encoder_inputs, outputs=out)
+    # compile the model
+    model.compile(
+        optimizer=Adam(learning_rate=learning_rate, clipvalue=1.0), loss="mse"
+    )
+
+    return model
+
+
+def build_seq2seq_lstm_model_with_hp(
+    hp, input_shape, output_size, pred_length, regularization=True
+):
+    units = hp.Int("units", min_value=30, max_value=210, step=30)
+    learning_rate = hp.Float(
+        "learning_rate", min_value=0.0001, max_value=0.03, step=0.0005
+    )
+    if regularization:
+        dropout = hp.Float("dropout", min_value=0.1, max_value=0.3, step=0.05)
+        alpha = hp.Float("alpha", min_value=0.1, max_value=0.3, step=0.1)
+
+    # Encoder
+    encoder_inputs = Input(shape=input_shape)
+    # LSTM layer with return_state=True to get the hidden and cell states
+    encoder_lstm, state_h, state_c = LSTM(
+        units, return_state=True, return_sequences=True
+    )(encoder_inputs)
+    if regularization:
+        # leaky relu activation function
+        encoder_lstm = LeakyReLU(negative_slope=alpha)(encoder_lstm)
+        # dropout layer
+        encoder_lstm = Dropout(dropout)(encoder_lstm)
+    # repeat the hidden state of the encoder LSTM for pred_length times to be used as input to the decoder
+    decoder_input = RepeatVector(pred_length)(state_h)
+    # LSTM layer with return_sequences=True to get the output at each time step
+    decoder_lstm = LSTM(units, return_sequences=True, return_state=False)(
+        decoder_input, initial_state=[state_h, state_c]
+    )
+    if regularization:
+        # leaky relu
+        decoder_lstm = LeakyReLU(negative_slope=alpha)(decoder_lstm)
+        # dropout
+        decoder_lstm = Dropout(dropout)(decoder_lstm)
+    # create a context vector using the attention mechanism for capturing the relevant information from the encoder output at each time step
+    context_vector = AdditiveAttention()([decoder_lstm, encoder_lstm])
+    # concatenate the context vector with the decoder output for each time step
+    decoder_combined_context = concatenate([context_vector, decoder_lstm])
+    # time distributed dense layer to get the output at each time step
+    out = TimeDistributed(Dense(output_size))(decoder_combined_context)
+    # define the model with encoder input and decoder output
+    model = Model(inputs=encoder_inputs, outputs=out)
+    # compile the model
+    model.compile(
+        optimizer=Adam(learning_rate=learning_rate, clipvalue=1.0), loss="mse"
+    )
+
+    return model
