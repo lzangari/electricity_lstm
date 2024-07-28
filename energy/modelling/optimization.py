@@ -25,6 +25,7 @@ def optimize_seq_length(
     batch_size=32,
     num_folds=3,
     verbose=2,
+    attention=None,
     name=None,
 ):
     """Optimize the sequence length for the LSTM model using KFold cross-validation.
@@ -72,26 +73,45 @@ def optimize_seq_length(
             )
 
             # Build the model and train it on the training data
-            model = built_model(
-                model_type=model_type,
-                input_shape=(X_train.shape[1], X_train.shape[2]),
-                output_size=output_size,
-                pred_length=pred_length,
-            )
-            # fit the model
-            _ = model.fit(
-                X_train,
-                y_train.reshape(y_train.shape[0], -1),
-                epochs=epochs,
-                batch_size=batch_size,
-                validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
-                verbose=verbose,
-            )
+            # if attention_type is not None:
+            if attention:
+                model = built_model(
+                    input_shape=(X_train.shape[1], X_train.shape[2]),
+                    output_size=output_size,
+                    pred_length=pred_length,
+                )
 
-            # evaluate the model on the validation data and calculate the loss
-            loss = model.evaluate(
-                X_val, y_val.reshape(y_val.shape[0], -1), verbose=verbose
-            )
+                _ = model.fit(
+                    X_train,
+                    y_train,
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    validation_data=(X_val, y_val),
+                    verbose=verbose,
+                )
+                loss = model.evaluate(X_val, y_val, verbose=verbose)
+
+            else:
+                model = built_model(
+                    model_type=model_type,
+                    input_shape=(X_train.shape[1], X_train.shape[2]),
+                    output_size=output_size,
+                    pred_length=pred_length,
+                )
+                # fit the model
+                _ = model.fit(
+                    X_train,
+                    y_train.reshape(y_train.shape[0], -1),
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
+                    verbose=verbose,
+                )
+
+                # evaluate the model on the validation data and calculate the loss
+                loss = model.evaluate(
+                    X_val, y_val.reshape(y_val.shape[0], -1), verbose=verbose
+                )
 
             if np.isnan(loss):
                 print(
@@ -145,22 +165,42 @@ def hypertune_model(
     max_trials=5,
     epochs=50,
     seed=None,
+    attention=False,
+    regularization=False,
 ):
-    tuner = BayesianOptimization(
-        partial(
-            build_model,
-            model_type=model_type,
-            input_shape=input_shape,
-            output_size=output_size,
-            pred_length=pred_length,
-        ),
-        objective="val_loss",
-        max_trials=max_trials,
-        executions_per_trial=3,
-        directory="hypertuning",
-        project_name=f"energy_prediction_{name}",
-        seed=seed,
-    )
+    if attention:
+        tuner = BayesianOptimization(
+            partial(
+                build_model,
+                input_shape=input_shape,
+                output_size=output_size,
+                pred_length=pred_length,
+                regularization=regularization,
+            ),
+            objective="val_loss",
+            max_trials=max_trials,
+            executions_per_trial=3,
+            directory="hypertuning",
+            project_name=f"energy_prediction_{name}",
+            seed=seed,
+        )
+
+    else:
+        tuner = BayesianOptimization(
+            partial(
+                build_model,
+                model_type=model_type,
+                input_shape=input_shape,
+                output_size=output_size,
+                pred_length=pred_length,
+            ),
+            objective="val_loss",
+            max_trials=max_trials,
+            executions_per_trial=3,
+            directory="hypertuning",
+            project_name=f"energy_prediction_{name}",
+            seed=seed,
+        )
 
     # summary of the search space
     tuner.search_space_summary()
