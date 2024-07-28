@@ -5,7 +5,7 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow import keras
 
 from energy.utils import utils
-from energy.modelling import optimization, model_creation
+from energy.modelling import optimization, model_creation, rolling
 
 TF_ENABLE_ONEDNN_OPTS = 0
 SEED = 42
@@ -322,5 +322,31 @@ if PRETRAINED:
     best_model = keras.saving.load_model(
         f"{MODEL_PATH}/best_energy_prediction_model_{MODEL_NAME}_{DATA_NAME}.keras"
     )
+    # FIXME:from here everything needs to be fixed. there is also a size difference between the naive and stacked in compared to the
+    # seq2seq modes which is not handled here and should be fixed once the training is done
     # creating the first sequence for the rolling prediction
     initial_seq = scaled_test_data[:SEQ_LENGTH]
+    predictions_inverse, actuals_inverse = rolling.rolling_prediction(
+        model=best_model,
+        initial_sequence=initial_seq,
+        test_data=scaled_test_data,
+        seq_length=SEQ_LENGTH,
+        pred_length=PRED_LENGTH,
+        scaler=scaler,
+        features=features,
+        output_size=output_size,
+    )
+
+    # create dataframes for the predictions and actuals
+    results_df = pd.DataFrame(
+        predictions_inverse, columns=[f"Pred_{feature}" for feature in output_features]
+    )
+    results_df[[f"Actual_{feature}" for feature in output_features]] = actuals_inverse
+
+    # Save to CSV for further analysis
+    results_df.to_csv(
+        f"results/rolling_predictions_{MODEL_NAME}_{DATA_NAME}.csv", index=False
+    )
+
+    # Display the first few rows of the results
+    print(results_df.head())
