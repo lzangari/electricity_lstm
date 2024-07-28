@@ -1,6 +1,8 @@
 import os
+import pickle
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+from tensorflow import keras
 
 from energy.utils import utils
 from energy.modelling import optimization, model_creation
@@ -9,19 +11,29 @@ TF_ENABLE_ONEDNN_OPTS = 0
 SEED = 42
 
 DATA_NAME = "hour"  # quarterhour
-MODEL_NAME = "lstm_naive"  # lstm_naive, lstm_stacked, lstm_seq2seq
-OPTIMIZE_LENGTH_SEQUENCE = False
+MODEL_NAME = "lstm_seq2seq_additive"  # lstm_naive, lstm_stacked, lstm_seq2seq_additive
+OPTIMIZE_LENGTH_SEQUENCE = True
 if OPTIMIZE_LENGTH_SEQUENCE:
     selected_seq_lengths = [24, 24 * 2, 24 * 7]  # 1 day, 2 days, 1 week
 
+ATTENTION = False
+REGULARIZATION = False
 SEQ_LENGTH = 24 * 7  # 24 hours of one hour intervals
 PRED_LENGTH = 24 * 1  # Predict one day ahead
+HYPERPARAMETER_TUNING = False
 MAX_TRIALS = 30
 EPOCHS = 50
+
+PRETRAINED = False
+MODEL_PATH = "model_info"
 
 
 if (MODEL_NAME == "lstm_naive") or (MODEL_NAME == "lstm_stacked"):
     build_lstm = model_creation.build_lstm_based_model
+elif MODEL_NAME == "lstm_seq2seq_additive":
+    build_lstm = model_creation.build_seq2seq_lstm_model
+    ATTENTION = True
+
 ################################################################################
 ###################################Import Data##################################
 ################################################################################
@@ -242,6 +254,9 @@ scaled_train_data = scaler.fit_transform(train_data[features])
 # transform the validation and test data
 scaled_validation_data = scaler.transform(validation_data[features])
 scaled_test_data = scaler.transform(test_data[features])
+# save the scaler for later use
+with open("model_info/scaler.pkl", "wb") as f:
+    pickle.dump(scaler, f)
 
 ###################################Data Sequencing#################################
 X_train, y_train = utils.create_sequences(
@@ -271,6 +286,7 @@ if OPTIMIZE_LENGTH_SEQUENCE:
             batch_size=64,
             num_folds=3,
             verbose=2,
+            attention=ATTENTION,
             name=f"{MODEL_NAME}_{DATA_NAME}",
         )
     )
@@ -278,21 +294,33 @@ if OPTIMIZE_LENGTH_SEQUENCE:
     print(f"Best sequence length: {best_sequence_length}")
 
 ############################HyperParameter Optimization ##########################
-best_model, tuner, train_loss, validation_loss, best_hyperparameters = (
-    optimization.hypertune_model(
-        build_model=model_creation.build_lstm_based_model_with_hp,
-        X_train=X_train,
-        y_train=y_train,
-        X_val=X_val,
-        y_val=y_val,
-        model_type=MODEL_NAME,
-        input_shape=(X_train.shape[1], X_train.shape[2]),
-        output_size=output_size,
-        pred_length=PRED_LENGTH,
-        path="results",
-        name=f"{MODEL_NAME}_{DATA_NAME}",
-        max_trials=MAX_TRIALS,
-        epochs=EPOCHS,
-        seed=SEED,
+if HYPERPARAMETER_TUNING:
+    best_model, tuner, train_loss, validation_loss, best_hyperparameters = (
+        optimization.hypertune_model(
+            build_model=model_creation.build_lstm_based_model_with_hp,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            model_type=MODEL_NAME,
+            input_shape=(X_train.shape[1], X_train.shape[2]),
+            output_size=output_size,
+            pred_length=PRED_LENGTH,
+            path="results",
+            name=f"{MODEL_NAME}_{DATA_NAME}",
+            max_trials=MAX_TRIALS,
+            epochs=EPOCHS,
+            seed=SEED,
+            attention=ATTENTION,
+            regularization=REGULARIZATION,
+        )
     )
-)
+
+
+if PRETRAINED:
+    # load the best model with tensorflow and keras
+    best_model = keras.saving.load_model(
+        f"{MODEL_PATH}/best_energy_prediction_model_{MODEL_NAME}_{DATA_NAME}.keras"
+    )
+    # creating the first sequence for the rolling prediction
+    initial_seq = scaled_test_data[:SEQ_LENGTH]
