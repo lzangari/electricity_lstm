@@ -3,7 +3,12 @@ import json
 from tqdm import tqdm
 import numpy as np
 
+from functools import partial
 from sklearn.model_selection import TimeSeriesSplit
+
+from keras_tuner import BayesianOptimization
+
+from tensorflow.keras.callbacks import EarlyStopping, CSVLogger, TensorBoard
 
 from energy.utils.utils import create_sequences
 
@@ -123,3 +128,110 @@ def optimize_seq_length(
         json.dump({"losses": losses, "seq_lengths": calculated_seq_lengths}, f)
 
     return best_seq_length, losses, calculated_seq_lengths
+
+
+def hypertune_model(
+    build_model,
+    X_train,
+    y_train,
+    X_val,
+    y_val,
+    model_type,
+    input_shape,
+    output_size,
+    pred_length,
+    path,
+    name,
+    max_trials=5,
+    epochs=50,
+    seed=None,
+):
+    tuner = BayesianOptimization(
+        partial(
+            build_model,
+            model_type=model_type,
+            input_shape=input_shape,
+            output_size=output_size,
+            pred_length=pred_length,
+        ),
+        objective="val_loss",
+        max_trials=max_trials,
+        executions_per_trial=3,
+        directory="hypertuning",
+        project_name=f"energy_prediction_{name}",
+        seed=seed,
+    )
+
+    # summary of the search space
+    tuner.search_space_summary()
+
+    # save the best sequence length with its loss
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print(f"Created directory: {path}")
+
+    # save the search space in a json file
+    # with open(f'{path}/{name}_search_space.json', 'w') as f:
+    #     json.dumps(tuner.search_space_summary())
+
+    # Callback to log training and validation loss
+    csv_logger = CSVLogger(f"training_log_{name}.csv", append=True)
+    early_stopping = EarlyStopping(
+        monitor="val_loss", patience=5, restore_best_weights=True
+    )
+    # create a log directory
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
+
+    tensorboard = TensorBoard(log_dir=f"logs/{name}")
+
+    tuner.search(
+        X_train,
+        y_train.reshape(y_train.shape[0], -1),
+        epochs=epochs,
+        validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
+        callbacks=[early_stopping, csv_logger, tensorboard],
+    )
+
+    # retrieve the best model and hyperparameters
+    best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
+    best_model = tuner.get_best_models(num_models=1)[0]
+    print(f"Best hyperparameters: {best_hp.values}")
+    print(f"Best model summary: {best_model.summary()}")
+    # print(f"Best model configuration: {best_model.get_config()}")
+    # print(f"Best model hyperparameters: {best_model.get_hyperparameters()}")
+
+    # evaluate the best model
+    train_loss = best_model.evaluate(
+        X_train, y_train.reshape(y_train.shape[0], -1), verbose=0
+    )
+    val_loss = best_model.evaluate(X_val, y_val.reshape(y_val.shape[0], -1), verbose=0)
+
+    # save the best model
+    # model_path = os.path.join(path, f'best_energy_prediction_model_{name}.h5')
+    best_model.save(f"{path}/best_energy_prediction_model_{name}.keras")
+    # best_model.save(model_path)
+
+    # save the best hyperparameters
+    hp_path = os.path.join(path, f"best_hyperparameters_{name}.json")
+    with open(hp_path, "w") as f:
+        json.dump(best_hp.values, f)
+    print(f"Best hyperparameters saved at: {hp_path}")
+
+    # save the results summary
+    results_summary = {
+        "train_loss": train_loss,
+        "val_loss": val_loss,
+        "best_hp": best_hp.values,
+    }
+    results_path = os.path.join(path, f"results_summary_{name}.json")
+    with open(results_path, "w") as f:
+        json.dump(results_summary, f)
+    # save the tuner
+    # tuner_path = os.path.join(path, f'tuner_{name}.json')
+    tuner.save()
+
+    # Visualization of hyperparameter tuning
+    tuner.results_summary()
+
+    return best_model, tuner, train_loss, val_loss, best_hp.values

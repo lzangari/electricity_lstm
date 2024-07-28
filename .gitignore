@@ -164,3 +164,7 @@ cython_debug/
 # folder
 results/
 hypertuning/
+logs/
+model_info/
+
+trace.xlsx

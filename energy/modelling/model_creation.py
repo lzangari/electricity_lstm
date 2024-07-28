@@ -20,7 +20,7 @@ def build_lstm_based_model(
     if model_type == "lstm_naive":
         model = Sequential()
         model.add(Input(shape=input_shape))
-        model.add(LSTM(units=units, activation="relu"))
+        model.add(LSTM(units=units))
         model.add(Dropout(dropout))
         model.add(Dense(pred_length * output_size))
 
@@ -35,7 +35,7 @@ def build_lstm_based_model(
 
     optimizer = Adam(learning_rate=learning_rate, clipvalue=1.0)
     model.compile(optimizer=optimizer, loss="mse")
-
+    # model.summary()
     return model
 
 
@@ -43,18 +43,18 @@ def build_lstm_based_model(
 def build_lstm_based_model_with_hp(
     hp, model_type, input_shape, output_size, pred_length
 ):
-    units = hp.Int("units", min_value=30, max_value=240, step=30)
-    dropout = hp.Float("dropout", min_value=0.1, max_value=0.25, step=0.05)
+    units = hp.Int("units", min_value=30, max_value=210, step=30)
+    dropout = hp.Float("dropout", min_value=0.1, max_value=0.3, step=0.05)
     learning_rate = hp.Float(
         "learning_rate", min_value=0.001, max_value=0.03, step=0.002
     )
     if model_type == "lstm_stacked":
-        alpha = hp.Float("alpha", min_value=0.1, max_value=0.3, step=0.1)
+        alpha = hp.Float("alpha", min_value=0.1, max_value=0.2, step=0.1)
 
     if model_type == "lstm_naive":
         model = Sequential()
         model.add(Input(shape=input_shape))
-        model.add(LSTM(units=units, activation="relu"))
+        model.add(LSTM(units=units))
         model.add(Dropout(dropout))
         model.add(Dense(pred_length * output_size))
 
@@ -73,4 +73,4 @@ def build_lstm_based_model_with_hp(
     return model
 
 
-# Seq2Seq LSTM model
+# # Seq2Seq LSTM model

@@ -6,15 +6,19 @@ from energy.utils import utils
 from energy.modelling import optimization, model_creation
 
 TF_ENABLE_ONEDNN_OPTS = 0
+SEED = 42
 
 DATA_NAME = "hour"  # quarterhour
-MODEL_NAME = "lstm_stacked"  # lstm_naive, lstm_stacked, lstm_seq2seq
-OPTIMIZE_LENGTH_SEQUENCE = True
+MODEL_NAME = "lstm_naive"  # lstm_naive, lstm_stacked, lstm_seq2seq
+OPTIMIZE_LENGTH_SEQUENCE = False
 if OPTIMIZE_LENGTH_SEQUENCE:
     selected_seq_lengths = [24, 24 * 2, 24 * 7]  # 1 day, 2 days, 1 week
 
-SEQ_LENGTH = 24 * 1  # 24 hours of one hour intervals
+SEQ_LENGTH = 24 * 7  # 24 hours of one hour intervals
 PRED_LENGTH = 24 * 1  # Predict one day ahead
+MAX_TRIALS = 30
+EPOCHS = 50
+
 
 if (MODEL_NAME == "lstm_naive") or (MODEL_NAME == "lstm_stacked"):
     build_lstm = model_creation.build_lstm_based_model
@@ -272,3 +276,23 @@ if OPTIMIZE_LENGTH_SEQUENCE:
     )
     SEQ_LENGTH = best_sequence_length
     print(f"Best sequence length: {best_sequence_length}")
+
+############################HyperParameter Optimization ##########################
+best_model, tuner, train_loss, validation_loss, best_hyperparameters = (
+    optimization.hypertune_model(
+        build_model=model_creation.build_lstm_based_model_with_hp,
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+        model_type=MODEL_NAME,
+        input_shape=(X_train.shape[1], X_train.shape[2]),
+        output_size=output_size,
+        pred_length=PRED_LENGTH,
+        path="results",
+        name=f"{MODEL_NAME}_{DATA_NAME}",
+        max_trials=MAX_TRIALS,
+        epochs=EPOCHS,
+        seed=SEED,
+    )
+)
