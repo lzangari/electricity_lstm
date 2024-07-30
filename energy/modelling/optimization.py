@@ -89,7 +89,7 @@ def optimize_seq_length(
                     validation_data=(X_val, y_val),
                     verbose=verbose,
                 )
-                loss = model.evaluate(X_val, y_val, verbose=verbose)
+                # loss = model.evaluate(X_val, y_val, verbose=verbose)
 
             else:
                 model = built_model(
@@ -101,17 +101,19 @@ def optimize_seq_length(
                 # fit the model
                 _ = model.fit(
                     X_train,
-                    y_train.reshape(y_train.shape[0], -1),
+                    y_train,
                     epochs=epochs,
                     batch_size=batch_size,
-                    validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
+                    validation_data=(X_val, y_val),
                     verbose=verbose,
                 )
 
-                # evaluate the model on the validation data and calculate the loss
-                loss = model.evaluate(
-                    X_val, y_val.reshape(y_val.shape[0], -1), verbose=verbose
-                )
+            loss = model.evaluate(X_val, y_val, verbose=verbose)
+
+            #     # evaluate the model on the validation data and calculate the loss
+            #     loss = model.evaluate(
+            #         X_val, y_val.reshape(y_val.shape[0], -1), verbose=verbose
+            #     )
 
             if np.isnan(loss):
                 print(
@@ -163,7 +165,7 @@ def hypertune_model(
     path,
     name,
     max_trials=5,
-    epochs=50,
+    epochs=100,
     seed=None,
     attention=False,
     regularization=False,
@@ -217,7 +219,7 @@ def hypertune_model(
     # Callback to log training and validation loss
     csv_logger = CSVLogger(f"training_log_{name}.csv", append=True)
     early_stopping = EarlyStopping(
-        monitor="val_loss", patience=5, restore_best_weights=True
+        monitor="val_loss", patience=10, restore_best_weights=True
     )
     # create a log directory
     if not os.path.exists("logs"):
@@ -225,13 +227,23 @@ def hypertune_model(
 
     tensorboard = TensorBoard(log_dir=f"logs/{name}")
 
+    # if attention:
     tuner.search(
         X_train,
-        y_train.reshape(y_train.shape[0], -1),
+        y_train,
         epochs=epochs,
-        validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
+        validation_data=(X_val, y_val),
         callbacks=[early_stopping, csv_logger, tensorboard],
     )
+
+    # else:
+    #     tuner.search(
+    #         X_train,
+    #         y_train.reshape(y_train.shape[0], -1),
+    #         epochs=epochs,
+    #         validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
+    #         callbacks=[early_stopping, csv_logger, tensorboard],
+    #     )
 
     # retrieve the best model and hyperparameters
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
@@ -242,10 +254,14 @@ def hypertune_model(
     # print(f"Best model hyperparameters: {best_model.get_hyperparameters()}")
 
     # evaluate the best model
-    train_loss = best_model.evaluate(
-        X_train, y_train.reshape(y_train.shape[0], -1), verbose=0
-    )
-    val_loss = best_model.evaluate(X_val, y_val.reshape(y_val.shape[0], -1), verbose=0)
+    # if attention:
+    train_loss = best_model.evaluate(X_train, y_train, verbose=0)
+    val_loss = best_model.evaluate(X_val, y_val, verbose=0)
+    # else:
+    #     train_loss = best_model.evaluate(
+    #         X_train, y_train.reshape(y_train.shape[0], -1), verbose=0
+    #     )
+    #     val_loss = best_model.evaluate(X_val, y_val.reshape(y_val.shape[0], -1), verbose=0)
 
     # save the best model
     # model_path = os.path.join(path, f'best_energy_prediction_model_{name}.h5')
