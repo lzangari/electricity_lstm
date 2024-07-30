@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def rolling_prediction(
@@ -10,6 +11,9 @@ def rolling_prediction(
     scaler,
     features,
     output_size,
+    output_features,
+    path,
+    name,
 ):
     current_sequence = initial_sequence.copy()
     predictions = []
@@ -31,19 +35,47 @@ def rolling_prediction(
         # update the sequence with the actual test data for the next prediction
         current_sequence = np.vstack([current_sequence[pred_length:], actual_data])
 
-    # Flatten predictions to 2D array
-    predictions = np.array(predictions).reshape(-1, output_size)
-    actuals = np.array(actuals).reshape(-1, len(features) + output_size)
-    # FIXME: after finishing trainign this should be checked
-    ####################################################################################################################
-    # Prepare for inverse transformation, it stack zeros for the size of the features to match the scaler's shape
-    combined_predictions = np.hstack(
-        (predictions, np.zeros((predictions.shape[0], len(features))))
-    )
-    # Inverse transform predictions and actuals
-    predictions_inverse = scaler.inverse_transform(combined_predictions)[
-        :, :output_size
-    ]
-    actuals_inverse = scaler.inverse_transform(actuals)[:, :output_size]
+    _ = np.array(predictions).reshape(-1, output_size)
+    # predictions has (x, pred_length, output_size dimensions) -> (x * pred_length, output_size)
+    # actuals has (x, pred_length, all_features) dimensions -> (x * pred_length, all_features)
+    actuals_data = np.array(actuals).reshape(-1, len(features) + output_size)
+    # wrong one
+    # actuals_data = np.array(actuals).reshape(-1, len(features))
 
-    return predictions_inverse, actuals_inverse
+    # (actual - 2 label columns) and put instead two prediction columns in the same shape
+    # predictions: 546, 24, 2, actuals: 546, 24, 22 -> the first 2 columns are the labels and should be replaced by the predictions
+    # np.array(predictions.shape[0], predictions.shape[1], actuals.shape[2])
+    # actual_predictions = np.zeros((np.array(predictions).shape[0], np.array(predictions).shape[1], actuals_data.shape[1]))
+    # create another actual predictions that the first two columns are the predictions and the rest are the actuals
+    actuals_predictions = np.array(actuals).copy()
+    # replace the first two columns with the predictions
+    actuals_predictions[:, :, :output_size] = np.array(predictions).copy()
+    actuals_predictions = actuals_predictions.reshape(-1, len(features) + output_size)
+    # wrong one
+    # actuals_predictions = actuals_predictions.reshape(-1, len(features))
+
+    # Inverse transform predictions and actuals
+    actuals_predictions_inverse = scaler.inverse_transform(actuals_predictions)
+    actuals_inverse = scaler.inverse_transform(actuals_data)
+
+    # make a dataframe with the actuals_predictions_inverse and assign the columns names using output_features and features
+    # create the columns names for the dataframe
+    actuals_columns = output_features + features
+    # predictions columns with having "pred_" before the name of the output features
+    predictions_features = ["pred_" + feature for feature in output_features]
+    predicitons_columns = predictions_features + features
+    # create the dataframe
+    predictions_inverse = pd.DataFrame(
+        actuals_predictions_inverse, columns=predicitons_columns
+    )
+    actuals_inverse = pd.DataFrame(actuals_inverse, columns=actuals_columns)
+
+    # merge the predictions and actuals dataframes on the features columns
+    merged_df = pd.merge(predictions_inverse, actuals_inverse, on=features, how="inner")
+    merged_columns = predictions_features + output_features + features
+    merged_df = merged_df[merged_columns]
+
+    # save the merged dataframe to a csv file
+    merged_df.to_csv(f"{path}/predictions_{name}.csv", index=False)
+
+    return predictions_inverse, actuals_inverse, merged_df
