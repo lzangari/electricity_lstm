@@ -12,6 +12,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Model
+from tensorflow.keras import losses
 from keras.layers import concatenate
 
 
@@ -27,21 +28,25 @@ def build_lstm_based_model(
     learning_rate=0.005,
     alpha=0.1,
 ):
-    if model_type == "lstm_naive":
-        model = Sequential()
-        model.add(Input(shape=input_shape))
-        model.add(LSTM(units=units))
-        model.add(Dropout(dropout))
-        model.add(Dense(pred_length * output_size))
-
-    elif model_type == "lstm_stacked":
+    # if model_type == "lstm_naive":
+    if "naive" in model_type:
         model = Sequential()
         model.add(Input(shape=input_shape))
         model.add(LSTM(units=units, return_sequences=True))
-        model.add(LSTM(units=units, kernel_regularizer=l2(1e-4)))
+        model.add(Dropout(dropout))
+        model.add(TimeDistributed(Dense(output_size)))
+        # model.add(Dense(pred_length * output_size))
+
+    # elif model_type == "lstm_stacked":
+    elif "stacked" in model_type:
+        model = Sequential()
+        model.add(Input(shape=input_shape))
+        model.add(LSTM(units=units, return_sequences=True))
+        model.add(LSTM(units=units, return_sequences=True, kernel_regularizer=l2(1e-4)))
         model.add(LeakyReLU(negative_slope=alpha))
         model.add(Dropout(dropout))
-        model.add(Dense(pred_length * output_size))
+        model.add(TimeDistributed(Dense(output_size)))
+        # model.add(Dense(pred_length * output_size))
 
     optimizer = Adam(learning_rate=learning_rate, clipvalue=1.0)
     model.compile(optimizer=optimizer, loss="mse")
@@ -53,29 +58,30 @@ def build_lstm_based_model(
 def build_lstm_based_model_with_hp(
     hp, model_type, input_shape, output_size, pred_length
 ):
-    units = hp.Int("units", min_value=30, max_value=210, step=30)
-    dropout = hp.Float("dropout", min_value=0.1, max_value=0.3, step=0.05)
+    units = hp.Int("units", min_value=30, max_value=170, step=30)
+    dropout = hp.Float("dropout", min_value=0.15, max_value=0.3, step=0.05)
     learning_rate = hp.Float(
-        "learning_rate", min_value=0.001, max_value=0.03, step=0.002
+        "learning_rate", min_value=0.0001, max_value=0.025, step=0.002
     )
     if model_type == "lstm_stacked":
         alpha = hp.Float("alpha", min_value=0.1, max_value=0.2, step=0.1)
 
-    if model_type == "lstm_naive":
-        model = Sequential()
-        model.add(Input(shape=input_shape))
-        model.add(LSTM(units=units))
-        model.add(Dropout(dropout))
-        model.add(Dense(pred_length * output_size))
-
-    elif model_type == "lstm_stacked":
+    if "naive" in model_type:
         model = Sequential()
         model.add(Input(shape=input_shape))
         model.add(LSTM(units=units, return_sequences=True))
-        model.add(LSTM(units=units, kernel_regularizer=l2(1e-4)))
+        model.add(Dropout(dropout))
+        model.add(TimeDistributed(Dense(output_size)))
+
+    elif "stacked" in model_type:
+        model = Sequential()
+        model.add(Input(shape=input_shape))
+        model.add(LSTM(units=units, return_sequences=True))
+        model.add(LSTM(units=units, return_sequences=True, kernel_regularizer=l2(1e-4)))
         model.add(LeakyReLU(negative_slope=alpha))
         model.add(Dropout(dropout))
-        model.add(Dense(pred_length * output_size))
+        model.add(TimeDistributed(Dense(output_size)))
+        # model.add(Dense(pred_length * output_size))
 
     optimizer = Adam(learning_rate=learning_rate, clipvalue=1.0)
     model.compile(optimizer=optimizer, loss="mse")
@@ -131,12 +137,15 @@ def build_seq2seq_lstm_model(
     return model
 
 
+# rmse and mape
+
+
 def build_seq2seq_lstm_model_with_hp(
     hp, input_shape, output_size, pred_length, regularization=True
 ):
-    units = hp.Int("units", min_value=30, max_value=210, step=30)
+    units = hp.Int("units", min_value=30, max_value=170, step=30)
     learning_rate = hp.Float(
-        "learning_rate", min_value=0.0001, max_value=0.03, step=0.0005
+        "learning_rate", min_value=0.0001, max_value=0.024, step=0.0004
     )
     if regularization:
         dropout = hp.Float("dropout", min_value=0.1, max_value=0.3, step=0.05)
@@ -174,7 +183,8 @@ def build_seq2seq_lstm_model_with_hp(
     model = Model(inputs=encoder_inputs, outputs=out)
     # compile the model
     model.compile(
-        optimizer=Adam(learning_rate=learning_rate, clipvalue=1.0), loss="mse"
+        optimizer=Adam(learning_rate=learning_rate, clipvalue=1.0), loss=losses.Huber()
     )
+    # loss="mse"
 
     return model
