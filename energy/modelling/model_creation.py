@@ -7,6 +7,8 @@ from tensorflow.keras.layers import (
     RepeatVector,
     TimeDistributed,
     AdditiveAttention,
+    Reshape,
+    Flatten,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import LeakyReLU
@@ -47,6 +49,11 @@ def build_lstm_based_model(
         model.add(Dropout(dropout))
         model.add(TimeDistributed(Dense(output_size)))
         # model.add(Dense(pred_length * output_size))
+        # flatten it
+        model.add(Flatten())
+        # map to the desired output size
+        model.add(Dense(units=pred_length * output_size))
+        model.add(Reshape((pred_length, output_size)))
 
     optimizer = Adam(learning_rate=learning_rate, clipvalue=1.0)
     model.compile(optimizer=optimizer, loss="mse")
@@ -63,7 +70,7 @@ def build_lstm_based_model_with_hp(
     learning_rate = hp.Float(
         "learning_rate", min_value=0.0001, max_value=0.024, step=0.0004
     )
-    if model_type == "lstm_stacked":
+    if "stacked" in model_type:
         alpha = hp.Float("alpha", min_value=0.1, max_value=0.2, step=0.1)
 
     if "naive" in model_type:
@@ -71,7 +78,13 @@ def build_lstm_based_model_with_hp(
         model.add(Input(shape=input_shape))
         model.add(LSTM(units=units, return_sequences=True))
         model.add(Dropout(dropout))
-        model.add(TimeDistributed(Dense(output_size)))
+        # model.add(TimeDistributed(Dense(output_size)))
+        model.add(TimeDistributed(Dense(units=output_size)))
+        # flatten it
+        model.add(Flatten())
+        # map to the desired output size
+        model.add(Dense(units=pred_length * output_size))
+        model.add(Reshape((pred_length, output_size)))
 
     elif "stacked" in model_type:
         model = Sequential()

@@ -26,6 +26,10 @@ EPOCHS = 100
 
 PRETRAINED = True
 MODEL_PATH = "model_info"
+# check if the path exits or create it
+if not os.path.exists(MODEL_PATH):
+    os.makedirs(MODEL_PATH)
+    print(f"Directory {MODEL_PATH} created")
 
 
 # if (MODEL_NAME == "lstm_naive") or (MODEL_NAME == "lstm_stacked"):
