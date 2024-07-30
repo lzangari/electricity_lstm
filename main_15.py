@@ -11,26 +11,27 @@ TF_ENABLE_ONEDNN_OPTS = 0
 SEED = 42
 
 DATA_NAME = "hour"  # quarterhour
-MODEL_NAME = "lstm_seq2seq_additive"  # lstm_naive, lstm_stacked, lstm_seq2seq_additive
-OPTIMIZE_LENGTH_SEQUENCE = True
+MODEL_NAME = "mse_lstm_stacked"  # lstm_naive, lstm_stacked, lstm_seq2seq_additive, lstm_seq2seq_additive_regu
+OPTIMIZE_LENGTH_SEQUENCE = False
 if OPTIMIZE_LENGTH_SEQUENCE:
     selected_seq_lengths = [24, 24 * 2, 24 * 7]  # 1 day, 2 days, 1 week
 
 ATTENTION = False
 REGULARIZATION = False
-SEQ_LENGTH = 24 * 7  # 24 hours of one hour intervals
+SEQ_LENGTH = 24 * 1  # 24 hours of one hour intervals
 PRED_LENGTH = 24 * 1  # Predict one day ahead
-HYPERPARAMETER_TUNING = False
-MAX_TRIALS = 30
-EPOCHS = 50
+HYPERPARAMETER_TUNING = True
+MAX_TRIALS = 35
+EPOCHS = 100
 
-PRETRAINED = False
+PRETRAINED = True
 MODEL_PATH = "model_info"
 
 
-if (MODEL_NAME == "lstm_naive") or (MODEL_NAME == "lstm_stacked"):
+# if (MODEL_NAME == "lstm_naive") or (MODEL_NAME == "lstm_stacked"):
+if "naive" in MODEL_NAME or "stacked" in MODEL_NAME:
     build_lstm = model_creation.build_lstm_based_model
-elif MODEL_NAME == "lstm_seq2seq_additive":
+elif "seq2seq" in MODEL_NAME:
     build_lstm = model_creation.build_seq2seq_lstm_model
     ATTENTION = True
 
@@ -191,7 +192,7 @@ if not os.path.exists("data/transformed"):
     print("Directory 'transformed' created")
 
 # save the data to the transformed folder
-data.to_csv(rf"data/transformed/transformed_{DATA_NAME}.csv", index=False)
+data.to_csv(rf"data/transformed/transformed_{DATA_NAME}_{MODEL_NAME}.csv", index=False)
 
 
 ################################################################################
@@ -250,12 +251,12 @@ test_data = data[data["start_time"] >= "2023-01-01"]
 # Scale the data
 scaler = MinMaxScaler()
 # fit the scaler on the training data
-scaled_train_data = scaler.fit_transform(train_data[features])
+scaled_train_data = scaler.fit_transform(train_data[all_columns])
 # transform the validation and test data
-scaled_validation_data = scaler.transform(validation_data[features])
-scaled_test_data = scaler.transform(test_data[features])
+scaled_validation_data = scaler.transform(validation_data[all_columns])
+scaled_test_data = scaler.transform(test_data[all_columns])
 # save the scaler for later use
-with open("model_info/scaler.pkl", "wb") as f:
+with open(f"model_info/scaler_{DATA_NAME}_{MODEL_NAME}.pkl", "wb") as f:
     pickle.dump(scaler, f)
 
 ###################################Data Sequencing#################################
@@ -295,9 +296,13 @@ if OPTIMIZE_LENGTH_SEQUENCE:
 
 ############################HyperParameter Optimization ##########################
 if HYPERPARAMETER_TUNING:
+    if ATTENTION:
+        build_model = model_creation.build_seq2seq_lstm_model_with_hp
+    else:
+        build_model = model_creation.build_lstm_based_model_with_hp
     best_model, tuner, train_loss, validation_loss, best_hyperparameters = (
         optimization.hypertune_model(
-            build_model=model_creation.build_lstm_based_model_with_hp,
+            build_model=build_model,
             X_train=X_train,
             y_train=y_train,
             X_val=X_val,
@@ -319,14 +324,14 @@ if HYPERPARAMETER_TUNING:
 
 if PRETRAINED:
     # load the best model with tensorflow and keras
-    best_model = keras.saving.load_model(
-        f"{MODEL_PATH}/best_energy_prediction_model_{MODEL_NAME}_{DATA_NAME}.keras"
+    best_model = keras.models.load_model(
+        f"results/best_energy_prediction_model_{MODEL_NAME}_{DATA_NAME}.keras"
     )
     # FIXME:from here everything needs to be fixed. there is also a size difference between the naive and stacked in compared to the
     # seq2seq modes which is not handled here and should be fixed once the training is done
     # creating the first sequence for the rolling prediction
     initial_seq = scaled_test_data[:SEQ_LENGTH]
-    predictions_inverse, actuals_inverse = rolling.rolling_prediction(
+    predictions_inverse, actuals_inverse, merged_df = rolling.rolling_prediction(
         model=best_model,
         initial_sequence=initial_seq,
         test_data=scaled_test_data,
@@ -335,18 +340,9 @@ if PRETRAINED:
         scaler=scaler,
         features=features,
         output_size=output_size,
+        output_features=output_features,
+        path="results",
+        name=f"{MODEL_NAME}_{DATA_NAME}",
     )
 
-    # create dataframes for the predictions and actuals
-    results_df = pd.DataFrame(
-        predictions_inverse, columns=[f"Pred_{feature}" for feature in output_features]
-    )
-    results_df[[f"Actual_{feature}" for feature in output_features]] = actuals_inverse
-
-    # Save to CSV for further analysis
-    results_df.to_csv(
-        f"results/rolling_predictions_{MODEL_NAME}_{DATA_NAME}.csv", index=False
-    )
-
-    # Display the first few rows of the results
-    print(results_df.head())
+    print(f"merged_df: {merged_df.head()}")

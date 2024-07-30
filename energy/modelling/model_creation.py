@@ -61,7 +61,7 @@ def build_lstm_based_model_with_hp(
     units = hp.Int("units", min_value=30, max_value=170, step=30)
     dropout = hp.Float("dropout", min_value=0.15, max_value=0.3, step=0.05)
     learning_rate = hp.Float(
-        "learning_rate", min_value=0.0001, max_value=0.025, step=0.002
+        "learning_rate", min_value=0.0001, max_value=0.024, step=0.0004
     )
     if model_type == "lstm_stacked":
         alpha = hp.Float("alpha", min_value=0.1, max_value=0.2, step=0.1)
