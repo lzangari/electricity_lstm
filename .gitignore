@@ -162,9 +162,9 @@ cython_debug/
 #.idea/
 
 # folder
-results/
-hypertuning/
-logs/
-model_info/
+# results/
+# hypertuning/
+# logs/
+# model_info/
 
 trace.xlsx
