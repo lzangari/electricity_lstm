@@ -10,7 +10,7 @@ from tensorflow.keras.layers import (
     Reshape,
     Flatten,
 )
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, schedules
 from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Model
@@ -30,16 +30,19 @@ def build_lstm_based_model(
     learning_rate=0.005,
     alpha=0.1,
 ):
-    # if model_type == "lstm_naive":
     if "naive" in model_type:
         model = Sequential()
         model.add(Input(shape=input_shape))
         model.add(LSTM(units=units, return_sequences=True))
         model.add(Dropout(dropout))
-        model.add(TimeDistributed(Dense(output_size)))
-        # model.add(Dense(pred_length * output_size))
+        # model.add(TimeDistributed(Dense(output_size)))
+        model.add(TimeDistributed(Dense(units=output_size)))
+        # flatten it
+        model.add(Flatten())
+        # map to the desired output size
+        model.add(Dense(units=pred_length * output_size))
+        model.add(Reshape((pred_length, output_size)))
 
-    # elif model_type == "lstm_stacked":
     elif "stacked" in model_type:
         model = Sequential()
         model.add(Input(shape=input_shape))
@@ -49,11 +52,6 @@ def build_lstm_based_model(
         model.add(Dropout(dropout))
         model.add(TimeDistributed(Dense(output_size)))
         # model.add(Dense(pred_length * output_size))
-        # flatten it
-        model.add(Flatten())
-        # map to the desired output size
-        model.add(Dense(units=pred_length * output_size))
-        model.add(Reshape((pred_length, output_size)))
 
     optimizer = Adam(learning_rate=learning_rate, clipvalue=1.0)
     model.compile(optimizer=optimizer, loss="mse")
@@ -154,15 +152,15 @@ def build_seq2seq_lstm_model(
 
 
 def build_seq2seq_lstm_model_with_hp(
-    hp, input_shape, output_size, pred_length, regularization=True
+    hp, input_shape, output_size, pred_length, regularization=True, scheduler=True
 ):
-    units = hp.Int("units", min_value=30, max_value=170, step=30)
+    units = hp.Int("units", min_value=30, max_value=150, step=30)
     learning_rate = hp.Float(
-        "learning_rate", min_value=0.0001, max_value=0.024, step=0.0004
+        "learning_rate", min_value=0.0001, max_value=0.025, step=0.0003
     )
     if regularization:
         dropout = hp.Float("dropout", min_value=0.1, max_value=0.3, step=0.05)
-        alpha = hp.Float("alpha", min_value=0.1, max_value=0.3, step=0.1)
+        alpha = hp.Float("alpha", min_value=0.01, max_value=0.05, step=0.02)
 
     # Encoder
     encoder_inputs = Input(shape=input_shape)
@@ -195,9 +193,18 @@ def build_seq2seq_lstm_model_with_hp(
     # define the model with encoder input and decoder output
     model = Model(inputs=encoder_inputs, outputs=out)
     # compile the model
+    if scheduler:
+        learning_rate_schedule = schedules.ExponentialDecay(
+            initial_learning_rate=learning_rate, decay_steps=100, decay_rate=0.96
+        )
+    else:
+        learning_rate_schedule = learning_rate
+
     model.compile(
-        optimizer=Adam(learning_rate=learning_rate, clipvalue=1.0), loss=losses.Huber()
+        optimizer=Adam(learning_rate=learning_rate_schedule, clipvalue=1.0),
+        loss=losses.Huber(),
     )
-    # loss="mse"
+    # loss="mse", losses.Huber()
+    print(f"model summary: {model.summary()}")
 
     return model
