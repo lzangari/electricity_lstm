@@ -219,7 +219,7 @@ def hypertune_model(
     # Callback to log training and validation loss
     csv_logger = CSVLogger(f"training_log_{name}.csv", append=True)
     early_stopping = EarlyStopping(
-        monitor="val_loss", patience=10, restore_best_weights=True
+        monitor="val_loss", patience=20, restore_best_weights=True
     )
     # create a log directory
     if not os.path.exists("logs"):
