@@ -20,6 +20,7 @@ def rolling_prediction(
     actuals = []
 
     for i in range(0, len(test_data) - seq_length - pred_length + 1, pred_length):
+        # 0, len(test_data) - seq_length - pred_length + 1, pred_length)
         # predict the next sequence
         next_pred = model.predict(
             current_sequence.reshape(
@@ -35,7 +36,7 @@ def rolling_prediction(
         # update the sequence with the actual test data for the next prediction
         current_sequence = np.vstack([current_sequence[pred_length:], actual_data])
 
-    _ = np.array(predictions).reshape(-1, output_size)
+    # _ = np.array(predictions).reshape(-1, output_size)
     # predictions has (x, pred_length, output_size dimensions) -> (x * pred_length, output_size)
     # actuals has (x, pred_length, all_features) dimensions -> (x * pred_length, all_features)
     actuals_data = np.array(actuals).reshape(-1, len(features) + output_size)
@@ -70,12 +71,36 @@ def rolling_prediction(
     )
     actuals_inverse = pd.DataFrame(actuals_inverse, columns=actuals_columns)
 
+    # import the main trasformed data
+    main_data = pd.read_csv(f"data/transformed/transformed_{name}.csv")
+    if seq_length == 24:
+        filter_data = main_data[
+            (main_data["start_time"] >= "2023-01-02")
+            & (main_data["start_time"] < "2024-06-30 01:00:00")
+        ]
+        filter_data = filter_data.reset_index()
+    elif seq_length == 168:
+        filter_data = main_data[
+            (main_data["start_time"] >= "2023-01-08")
+            & (main_data["start_time"] < "2024-06-30 01:00:00")
+        ]
+        filter_data = filter_data.reset_index()
+    elif seq_length == 48:
+        filter_data = main_data[
+            (main_data["start_time"] >= "2023-01-03")
+            & (main_data["start_time"] < "2024-06-30 01:00:00")
+        ]
+        filter_data = filter_data.reset_index()
+
+    all_data = pd.concat([actuals_inverse, predictions_inverse, filter_data], axis=1)
+    all_data = all_data.loc[:, ~all_data.columns.duplicated()].copy()
     # merge the predictions and actuals dataframes on the features columns
-    merged_df = pd.merge(predictions_inverse, actuals_inverse, on=features, how="inner")
-    merged_columns = predictions_features + output_features + features
-    merged_df = merged_df[merged_columns]
+    # FIXME
+    # merged_df = pd.merge(predictions_inverse, actuals_inverse, on=features, how="inner")
+    # merged_columns = predictions_features + output_features + features
+    # merged_df = merged_df[merged_columns]
 
     # save the merged dataframe to a csv file
-    merged_df.to_csv(f"{path}/predictions_{name}.csv", index=False)
+    all_data.to_csv(f"{path}/predictions_smard_real_{name}.csv", index=False)
 
-    return predictions_inverse, actuals_inverse, merged_df
+    return predictions_inverse, actuals_inverse, all_data
