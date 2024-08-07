@@ -6,22 +6,23 @@ from tensorflow import keras
 
 from energy.utils import utils
 from energy.modelling import optimization, model_creation, rolling
+from energy.evaluating import evaluation
 
 TF_ENABLE_ONEDNN_OPTS = 0
 SEED = 42
 
 DATA_NAME = "hour"  # quarterhour
-MODEL_NAME = "mse_lstm_stacked"  # lstm_naive, lstm_stacked, lstm_seq2seq_additive, lstm_seq2seq_additive_regu
+MODEL_NAME = "mse_lstm_seq2seq_additive_regu_31_07"  # lstm_naive, lstm_stacked, lstm_seq2seq_additive, lstm_seq2seq_additive_regu
 OPTIMIZE_LENGTH_SEQUENCE = False
 if OPTIMIZE_LENGTH_SEQUENCE:
     selected_seq_lengths = [24, 24 * 2, 24 * 7]  # 1 day, 2 days, 1 week
 
-ATTENTION = False
-REGULARIZATION = False
-SEQ_LENGTH = 24 * 1  # 24 hours of one hour intervals
+ATTENTION = True
+REGULARIZATION = True
+SEQ_LENGTH = 24 * 2  # 24 hours of one hour intervals
 PRED_LENGTH = 24 * 1  # Predict one day ahead
 HYPERPARAMETER_TUNING = True
-MAX_TRIALS = 35
+MAX_TRIALS = 40
 EPOCHS = 100
 
 PRETRAINED = True
@@ -350,3 +351,13 @@ if PRETRAINED:
     )
 
     print(f"merged_df: {merged_df.head()}")
+    # calculates and save the metrics
+    predictions_features = ["pred_" + feature for feature in output_features]
+    # priliminary metrics
+    metrics = evaluation.calculate_error_metrics(
+        df=merged_df,
+        prediction_features=predictions_features,
+        output_features=output_features,
+        path="results",
+        name=f"{MODEL_NAME}_{DATA_NAME}",
+    )

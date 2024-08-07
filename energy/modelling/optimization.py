@@ -110,11 +110,6 @@ def optimize_seq_length(
 
             loss = model.evaluate(X_val, y_val, verbose=verbose)
 
-            #     # evaluate the model on the validation data and calculate the loss
-            #     loss = model.evaluate(
-            #         X_val, y_val.reshape(y_val.shape[0], -1), verbose=verbose
-            #     )
-
             if np.isnan(loss):
                 print(
                     f"NaN loss encountered for sequence length {seq_length}. Skipping this length."
@@ -127,7 +122,6 @@ def optimize_seq_length(
 
         if fold_losses:
             # calculate the average loss for the current sequence
-            # avg_loss = total_loss / num_folds
             avg_loss = total_loss / len(fold_losses)
             print(f"Sequence Length: {seq_length}, Average Loss: {avg_loss}")
             losses.append(avg_loss)
@@ -212,10 +206,6 @@ def hypertune_model(
         os.makedirs(path)
         print(f"Created directory: {path}")
 
-    # save the search space in a json file
-    # with open(f'{path}/{name}_search_space.json', 'w') as f:
-    #     json.dumps(tuner.search_space_summary())
-
     # Callback to log training and validation loss
     csv_logger = CSVLogger(f"training_log_{name}.csv", append=True)
     early_stopping = EarlyStopping(
@@ -227,7 +217,6 @@ def hypertune_model(
 
     tensorboard = TensorBoard(log_dir=f"logs/{name}")
 
-    # if attention:
     tuner.search(
         X_train,
         y_train,
@@ -235,36 +224,13 @@ def hypertune_model(
         validation_data=(X_val, y_val),
         callbacks=[early_stopping, csv_logger, tensorboard],
     )
-
-    # else:
-    #     tuner.search(
-    #         X_train,
-    #         y_train.reshape(y_train.shape[0], -1),
-    #         epochs=epochs,
-    #         validation_data=(X_val, y_val.reshape(y_val.shape[0], -1)),
-    #         callbacks=[early_stopping, csv_logger, tensorboard],
-    #     )
-
     # retrieve the best model and hyperparameters
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     best_model = tuner.get_best_models(num_models=1)[0]
     print(f"Best hyperparameters: {best_hp.values}")
     print(f"Best model summary: {best_model.summary()}")
-    # print(f"Best model configuration: {best_model.get_config()}")
-    # print(f"Best model hyperparameters: {best_model.get_hyperparameters()}")
-
-    # evaluate the best model
-    # if attention:
     train_loss = best_model.evaluate(X_train, y_train, verbose=0)
     val_loss = best_model.evaluate(X_val, y_val, verbose=0)
-    # else:
-    #     train_loss = best_model.evaluate(
-    #         X_train, y_train.reshape(y_train.shape[0], -1), verbose=0
-    #     )
-    #     val_loss = best_model.evaluate(X_val, y_val.reshape(y_val.shape[0], -1), verbose=0)
-
-    # save the best model
-    # model_path = os.path.join(path, f'best_energy_prediction_model_{name}.h5')
     best_model.save(f"{path}/best_energy_prediction_model_{name}.keras")
     # best_model.save(model_path)
 
@@ -284,7 +250,6 @@ def hypertune_model(
     with open(results_path, "w") as f:
         json.dump(results_summary, f)
     # save the tuner
-    # tuner_path = os.path.join(path, f'tuner_{name}.json')
     tuner.save()
 
     # Visualization of hyperparameter tuning

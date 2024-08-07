@@ -1,1 +1,10 @@
-{"train_loss": 0.0028676067013293505, "val_loss": 0.004688810091465712, "best_hp": {"units": 30, "dropout": 0.2, "learning_rate": 0.016900000000000002, "alpha": 0.1}}
+{
+    "train_loss": 0.0028676067013293505,
+    "val_loss": 0.004688810091465712,
+    "best_hp": {
+        "units": 30,
+        "dropout": 0.2,
+        "learning_rate": 0.016900000000000002,
+        "alpha": 0.1
+    }
+}

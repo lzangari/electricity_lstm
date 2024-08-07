@@ -1,1 +1,8 @@
-{"train_loss": 0.0019836705178022385, "val_loss": 0.002870156429708004, "best_hp": {"units": 90, "learning_rate": 0.0081}}
+{
+    "train_loss": 0.0019836705178022385,
+    "val_loss": 0.002870156429708004,
+    "best_hp": {
+        "units": 90,
+        "learning_rate": 0.0081
+    }
+}

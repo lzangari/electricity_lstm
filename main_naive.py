@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow import keras
 
+from energy.evaluating import evaluation
 from energy.utils import utils
 from energy.modelling import optimization, model_creation, rolling
 
@@ -21,7 +22,7 @@ REGULARIZATION = False
 SEQ_LENGTH = 24 * 7  # 24 hours of one hour intervals
 PRED_LENGTH = 24 * 1  # Predict one day ahead
 HYPERPARAMETER_TUNING = True
-MAX_TRIALS = 35
+MAX_TRIALS = 20
 EPOCHS = 99
 
 PRETRAINED = True
@@ -350,3 +351,13 @@ if PRETRAINED:
     )
 
     print(f"merged_df: {merged_df.head()}")
+    # calculates and save the metrics
+    predictions_features = ["pred_" + feature for feature in output_features]
+    # priliminary metrics
+    metrics = evaluation.calculate_error_metrics(
+        df=merged_df,
+        prediction_features=predictions_features,
+        output_features=output_features,
+        path="results",
+        name=f"{MODEL_NAME}_{DATA_NAME}",
+    )
